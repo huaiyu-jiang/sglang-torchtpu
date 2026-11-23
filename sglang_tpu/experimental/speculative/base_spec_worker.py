@@ -110,6 +110,9 @@ from sglang_tpu.experimental.speculative.pd_hidden_pool import (
     PdHiddenPool,
     register_pd_hidden_pool,
 )
+from sglang_tpu.experimental.speculative.request_support import (
+    unsupported_request_features,
+)
 from sglang_tpu.experimental.speculative.spec_ops import (
     TARGET_CANDIDATES,
     accept_candidates_step,
@@ -151,6 +154,7 @@ from sglang_tpu.sampler import TpuSampler
 from sglang_tpu.top_k import register_tpu_top_k_ops
 
 if TYPE_CHECKING:
+    from sglang.srt.managers.schedule_batch import Req
     from sglang.srt.speculative.eagle_worker_v2 import EagleDraftWorker
 
 # apply_dflash_simulated_acceptance's fixed_token_id, so both paths emit the same tokens.
@@ -198,6 +202,25 @@ class TpuSpecWorker(BaseSpecWorker):
     # Opt in only when verification applies the scheduler's additive snapshot
     # at the padded batch size. Live penalizer state is still unsupported.
     supports_additive_penalties = False
+
+    @classmethod
+    def validate_request(cls, req: Req) -> str | None:
+        features = unsupported_request_features(
+            req,
+            supports_grammar=cls.supports_grammar,
+            supports_logprobs=cls.supports_logprobs,
+            supports_additive_penalties=cls.supports_additive_penalties,
+            bsearch_filtering=tpu_envs.SGLANG_TPU_ENABLE_BSEARCH_SAMPLING.get(),
+            custom_logit_processor_enabled=(
+                get_exec().features.enable_custom_logit_processor
+            ),
+        )
+        if not features:
+            return None
+        return (
+            f"{', '.join(features)} not supported with speculative decoding on "
+            "TPU; drop it from the request or serve without speculative decoding."
+        )
 
     def __init__(
         self,
