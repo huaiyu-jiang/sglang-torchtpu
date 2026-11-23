@@ -19,6 +19,7 @@ from sglang.srt.model_executor.graph_memory_usage import (
 from sglang.srt.runtime_context import get_disagg, get_exec, get_memory, get_schedule
 
 if TYPE_CHECKING:
+    from sglang.srt.managers.schedule_batch import Req
     from sglang.srt.managers.tp_worker import TpModelWorker
     from sglang.srt.mem_cache.memory_pool import KVCache
     from sglang.srt.model_executor.model_runner import (
@@ -170,6 +171,18 @@ class BaseSpecWorker(ABC):
     def __init__(self) -> None:
         self._additional_graph_memory_usage: dict[str, float] = {}
         self._additional_graph_time_usage: dict[str, float] = {}
+
+    @classmethod
+    def validate_request(cls, req: Req) -> Optional[str]:
+        """Why this worker cannot serve ``req``, or None when it can.
+
+        The scheduler calls this on every rank when a request arrives and
+        answers a message with a 400, so a worker turns away a request feature
+        it cannot run instead of failing the whole batch that carries it.
+        A classmethod because pipeline stages without a draft worker must reach
+        the same decision. The default accepts every request.
+        """
+        return None
 
     @property
     def hicache_draft_plan(self) -> HiCacheDraftPlan:

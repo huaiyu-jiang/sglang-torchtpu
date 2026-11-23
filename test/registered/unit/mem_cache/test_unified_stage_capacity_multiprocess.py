@@ -300,6 +300,7 @@ def _loop_worker(rank, path, level, drift_round):
             self.uocr_runtime = None
             self.device = "cpu"
             self.spec_algorithm = NS(is_none=lambda: True)
+            self.spec_worker_cls = None
             self.pp_group = NS(
                 is_first_rank=rank == 0,
                 is_last_rank=rank == 2,

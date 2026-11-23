@@ -1139,9 +1139,14 @@ class Scheduler(
 
     def maybe_init_draft_worker(self):
         if self.spec_algorithm.is_none():
+            self.spec_worker_cls = None
             self.draft_worker = None
             self.external_corpus_manager = None
             return
+
+        # Resolved before the PP early return: every stage validates requests
+        # against the same worker class, even the stages that hold no draft.
+        self.spec_worker_cls = self.spec_algorithm.create_worker(self.server_args)
 
         if (
             envs.SGLANG_ENABLE_PP_SPEC.get()
@@ -1165,8 +1170,7 @@ class Scheduler(
             target_worker=self.tp_worker,
         )
 
-        DraftWorkerClass = self.spec_algorithm.create_worker(self.server_args)
-        self.draft_worker = DraftWorkerClass(**draft_worker_kwargs)
+        self.draft_worker = self.spec_worker_cls(**draft_worker_kwargs)
 
         if self.spec_algorithm.is_ngram():
             from sglang.srt.speculative.external_corpus_manager import (
@@ -3868,6 +3872,15 @@ class Scheduler(
 
         if req.return_sampling_mask and not self.spec_algorithm.is_none():
             error_msg = validate_spec_sampling_mask_request(req, self.spec_algorithm)
+            if error_msg is not None:
+                self._reject_bad_request(req, error_msg)
+                return
+
+        # Set by maybe_init_draft_worker; None when speculative decoding is off.
+        if self.spec_worker_cls is not None and issubclass(
+            self.spec_worker_cls, BaseSpecWorker
+        ):
+            error_msg = self.spec_worker_cls.validate_request(req)
             if error_msg is not None:
                 self._reject_bad_request(req, error_msg)
                 return

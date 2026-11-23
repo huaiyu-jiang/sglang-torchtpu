@@ -226,6 +226,7 @@ def _request_stage(
     s.metrics_reporter = NS(enable_metrics=False)
     s.tokenizer = s.dllm_config = None
     s.spec_algorithm = NS(is_dflash_family=lambda: False, is_uno=lambda: False)
+    s.spec_worker_cls = None
     s._maybe_namespace_elastic_radix_cache = lambda req: None
     s._record_kv_event_lora_name = lambda req, name: None
     s.invariant_checker = NS(expect_output=lambda req: None)
